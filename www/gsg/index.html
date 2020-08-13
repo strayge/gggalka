@@ -1,0 +1,63 @@
+<!doctype html>
+<html>
+    <head>
+        <meta charset=utf-8>
+        <title>God Save GG! :peka:</title>
+        <meta name=description>
+        <meta name=viewport content="width=device-width, initial-scale=1">
+        <link rel=stylesheet href=main.css>
+        <link href="https://fonts.googleapis.com/css?family=Roboto" rel=stylesheet type=text/css>
+    </head>
+    <body class=h_twitch>
+        <div id=header>
+            <div class=config_button>
+                <label>
+                    <input type=checkbox id=showHidden checked onchange="l.filterSwitch('showHidden')">
+                    <i></i>
+                    <span>Скрытые</span>
+                </label>
+            </div>
+            <div class=config_button>
+                <label>
+                    <input type=checkbox id=showPremium checked onchange="l.filterSwitch('showPremium')">
+                    <i></i>
+                    <span>Premium</span>
+                </label>
+            </div>
+            <div class=config_button>
+                <label>
+                    <input type=checkbox id=showOthers checked onchange="l.filterSwitch('showOthers')">
+                    <i></i>
+                    <span>Остальные</span>
+                </label>
+            </div>
+            <div class=sep></div>
+            <div class=config_button>
+                <label>
+                    <input type=checkbox id=filterAdult checked onchange="l.filterSwitch('filterAdult')">
+                    <i></i>
+                    <span>18+</span>
+                </label>
+            </div>
+            <div class=config_button>
+                <label>
+                    <input type=checkbox id=fiterTwitch onchange="l.filterSwitch('fiterTwitch')">
+                    <i></i>
+                    <span>Twitch Only</span>
+                </label>
+            </div>
+        </div>
+        <div id=streams_list>
+        </div>
+        <div id=player_content style=display:none>
+            <div id=player class="split split-horizontal"></div>
+            <div id=chat class="split split-horizontal">
+                <div id=c_bottons>
+                    <a href=# class=close></a>
+                </div>
+                <div id=chat_inner></div>
+            </div>
+        </div>
+        <script src=main.js></script>
+    </body>
+</html>
