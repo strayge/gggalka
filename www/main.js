@@ -44,22 +44,22 @@ App.controller('ggGalkaCtrl', function($scope, $rootScope, $timeout, $http, $sta
             url: url
         }).then(function successCallback(response) {
             try {
-
-                for (var i = 0; i < response.data._embedded.streams.length; i++) {
-                    var str = response.data._embedded.streams[i];
+                for (var i = 0; i < response.data.streams.length; i++) {
+                    var str = response.data.streams[i];
                     var loaded = utils.findById($scope.streams, str.id);
-                    if(str.channel.hidden && !loaded) {
-                        str.viewers = parseInt(str.viewers);
-                        str.premium = str.channel.premium === 'true';
-                        $scope.streams.push(str);
+                    if (!loaded) {
+
+                        $http({method: 'GET', url: 'https://goodgame.ru/api/4/users/' + str.username}).then((response) => {
+                            str = response.data.stream;
+                            $scope.streams.push(str);
+                        })
+
+                        //$scope.streams.push(str);
                     }
                 }
 
-                if(response.data._links.next && !$scope.stream.id) {
-                    getNextPage(response.data._links.next.href);
-                } else {
-                    $scope.isLoading = false;
-                }
+                $scope.isLoading = false;
+
             } catch (e) { console.log(e); }
 
         }, function errorCallback(response) {
@@ -92,7 +92,7 @@ App.controller('ggGalkaCtrl', function($scope, $rootScope, $timeout, $http, $sta
             if(toState.name == 'list') {
                 $scope.stream = {};
                 $scope.isLoading = true;
-                getNextPage('https://api2.goodgame.ru/streams?only_gg=1&page=1&hidden=1');
+                getNextPage('https://ggstats.strayge.com/hidden');
                 //angular.element(window.document.body).ready(initPreview);
             } else {
                 var loaded = utils.findById($scope.streams, toParams.streamId);
