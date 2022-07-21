@@ -1,96 +1,104 @@
 "use strict";
-!function(e) {
-    var t = function(e) {
+
+class Api {
+    constructor() {
+        this.queue = []
+        this.baseUrl = "https://goodgame.ru/api/4/"
+    }
+
+    getStreams(params, success_cb, error_cb) {
+        this._request("streams", params, success_cb, error_cb)
+    }
+
+    getFavorites(params, success_cb, error_cb) {
+        this._request("favorites2", params, success_cb, error_cb)
+    }
+
+    getStream(stream_id, success_cb, error_cb) {
+        this._request("streams/" + stream_id, {}, success_cb, error_cb)
+    }
+
+    _reformat_params(e) {
         var t = "";
         for (var i in e)
             e.hasOwnProperty(i) && (t += (t ? "&" : "") + i + "=" + e[i]);
         return t
     }
-      , i = function() {
-        this.queue = [],
-        this.baseUrl = "https://api2.goodgame.ru/v2/"
-    };
-    i.prototype.getStreams = function(e, t, i) {
-        this._request("streams", e, t, i)
-    }
-    ,
-    i.prototype.getStream = function(e, t, i) {
-        this._request("streams/" + e, {}, t, i)
-    }
-    ,
-    i.prototype._request = function(e, i, n, s) {
-        var r = this
-          , o = 0
-          , a = function() {
-            if (o++ > 2)
-                return s();
-            var c = new XMLHttpRequest;
-            s = s || function() {}
-            ,
-            c.open("GET", r.baseUrl + e + "?" + t(i), !0),
-            c.onreadystatechange = function() {
-                if (4 == this.readyState) {
-                    if (0 === this.status && "" === this.responseText)
-                        return setTimeout(a, 1e3);
-                    try {
-                        n(JSON.parse(this.responseText))
-                    } catch (e) {
-                        s(this.responseText)
-                    }
+
+    _request(endpoint, params, success_cb, error_cb, retries = 0) {
+        if (retries++ > 2)
+            return error_cb();
+        var local_this = this;
+        var retry = function() {
+            local_this._request(endpoint, params, success_cb, error_cb, retries)
+        }
+
+        var request = new XMLHttpRequest;
+        error_cb = error_cb || function() {};
+        request.open("GET", this.baseUrl + endpoint + "?" + this._reformat_params(params), true);
+        request.onreadystatechange = function() {
+            if (4 == this.readyState) {
+                if (0 === this.status && "" === this.responseText)
+                    return setTimeout(retry, 1000);
+                try {
+                    success_cb(JSON.parse(this.responseText))
+                } catch (e) {
+                    console.error(e);
+                    error_cb(this.responseText);
                 }
             }
-            ,
-            c.onerror = function() {
-                setTimeout(a, 1e3)
-            }
-            ,
-            c.onabort = function() {
-                setTimeout(a, 1e3)
-            }
-            ,
-            c.send()
         };
-        a()
+        request.onerror = function() {setTimeout(retry, 1000)};
+        request.onabort = function() {setTimeout(retry, 1000)};
+        request.send();
     }
-    ,
-    e.GgApi = new i
-}(window),
-function(e) {
-    var t = !1
-      , i = function() {
-        return t ? t : t = new n
+
+    getHiddenStreams(success_cb, error_cb) {
+        fetch("https://ggstats.strayge.com/hidden").then(response => response.json()).then(response => {
+            for (var i = 0; i < response.streams.length; i++) {
+                var username = response.streams[i].username;
+                fetch("https://goodgame.ru/api/4/users/" + username).then(response => response.json()).then(response => {
+                    success_cb(response);
+                })
+            }
+            console.log(response);
+        })
     }
-      , n = function() {
+}
+
+class Router {
+    constructor() {
         this.events = {
             channel: [],
             list: []
         },
-        window.addEventListener("hashchange", this._checkState.bind(this)),
+        window.addEventListener("hashchange", this._checkState.bind(this));
         document.addEventListener("keydown", function(e) {
             var t = e.keyCode;
             27 == t && (window.location.hash = "#")
-        }, !1),
-        this._checkState()
-    };
-    n.prototype._currentState = function(e) {
+        }, false);
+        this._checkState();
+    }
+
+    _currentState(e) {
         return e ? e === this._currentState() : window.location.hash && "#" !== window.location.hash ? "channel" : "list"
     }
-    ,
-    n.prototype._checkState = function() {
+
+    _checkState() {
         this._trigger(this._currentState(), window.location.hash.slice(1))
     }
-    ,
-    n.prototype._trigger = function(e, t) {
+
+    _trigger(e, t) {
         for (var i in this.events)
             for (var n in this.events[i])
                 this.events[i][n][i === e ? "start" : "stop"](t)
     }
-    ,
-    n.prototype.goList = function() {
+
+    goList() {
         this._trigger("list", "#")
     }
-    ,
-    n.prototype.onChannel = function(e, t) {
+
+    onChannel(e, t) {
         var i = function() {}
           , n = {
             start: e || i,
@@ -99,8 +107,8 @@ function(e) {
         this.events.channel.push(n),
         n[this._currentState("channel") ? "start" : "stop"](window.location.hash && window.location.hash.slice(1))
     }
-    ,
-    n.prototype.onList = function(e, t) {
+
+    onList(e, t) {
         var i = function() {}
           , n = {
             start: e || i,
@@ -109,420 +117,249 @@ function(e) {
         this.events.list.push(n),
         n[this._currentState("list") ? "start" : "stop"](window.location.hash && window.location.hash.slice(1))
     }
-    ,
-    e.Router = i
-}(window),
-function() {
-    var e = function() {
-        this.enabled = !1,
-        this.splitted = !1,
+}
+
+class View {
+    constructor() {
+        this.enabled = false;
+        this.splitted = false;
         this.dom = {
             player: document.getElementById("player"),
             chat_inner: document.getElementById("chat_inner"),
             player_content: document.getElementById("player_content")
-        },
-        this.init()
-    };
-    e.prototype.splitInit = function() {
+        };
+        this.init();
+    }
+
+    splitInit() {
         this.splitted || (Split(["#player", "#chat"], {
             sizes: [75, 25],
             minSize: 100,
             gutterSize: 5
         }),
-        this.splitted = !0)
+        this.splitted = true)
     }
-    ,
-    e.prototype.createView = function(e, t) {
-        this.getStream(e),
-        this.id = e
+
+    createView(id, t) {
+        console.log('id ' + id)
+        this.getStream(id),
+        this.id = id
     }
-    ,
-    e.prototype.disableView = function() {
+
+    disableView() {
         this.enabled && (this.dom.player.innerHTML = "",
         this.dom.chat_inner.innerHTML = "",
         this.dom.player_content.style.display = "none",
-        this.enabled = !1)
+        this.enabled = false)
     }
-    ,
-    e.prototype.init = function() {
-        Router().onChannel(this.createView.bind(this), this.disableView.bind(this))
+
+    init() {
+        window.Router.onChannel(this.createView.bind(this), this.disableView.bind(this))
     }
-    ,
-    e.prototype.getStream = function(e) {
-        var t = this;
-        return window.GgApi.getStream(e, function(e) {
-            t.onLoaded(e)
-        }, function() {
-            Router().goList()
-        }),
-        !0
+
+    getStream(stream_id) {
+        var local_this = this;
+        return window.GgApi.getStream(
+            stream_id,
+            function(response) {local_this.onLoaded(response)},
+            function() {window.Router.goList()},
+        )
     }
-    ,
-    e.prototype.onLoaded = function(e) {
-        if (!e || e.status && 404 === e.status)
+
+    onLoaded(response) {
+        if (!response)
             return void (window.location.hash = "#");
-        var t = e.channel.embed;
-        t = t.replace("<iframe ", '<iframe allowfullscreen="allowfullscreen"'),
-        this.dom.player.innerHTML = t,
-        this.dom.chat_inner.innerHTML = '<iframe frameborder="0" allowfullscreen="allowfullscreen" width="100%" height="100%" src="https://goodgame.ru/chat/' + this.id + '/"></iframe>',
-        this.dom.player_content.style.display = "block",
-        this.enabled = !0,
+        var t = response.preview;
+        var html = "<iframe frameborder=\"0\" width=\"100%\" height=\"100%\" src=\"https://goodgame.ru/player?!!streamkey!!\"></iframe>";
+        t = html.replace("<iframe ", '<iframe allowfullscreen="allowfullscreen"')
+                .replace("!!streamkey!!", response.streamKey);
+        this.dom.player.innerHTML = t;
+        this.dom.chat_inner.innerHTML = '<iframe frameborder="0" allowfullscreen="allowfullscreen" width="100%" height="100%" src="https://goodgame.ru/chat/' + response.id + '/"></iframe>';
+        this.dom.player_content.style.display = "block";
+        this.enabled = true;
         this.splitInit()
     }
-    ,
-    new e
-}(),
-function() {
-    var e = this
-      , t = e.attachEvent && !e[n]
-      , i = e.document
-      , n = "addEventListener"
-      , s = "removeEventListener"
-      , r = "getBoundingClientRect"
-      , o = function() {
-        for (var e, t = ["", "-webkit-", "-moz-", "-o-"], n = 0; n < t.length; n++)
-            if (e = i.createElement("div"),
-            e.style.cssText = "width:" + t[n] + "calc(9px)",
-            e.style.length)
-                return t[n] + "calc"
-    }()
-      , a = function(e) {
-        return "string" == typeof e || e instanceof String ? i.querySelector(e) : e
-    }
-      , c = function(c, h) {
-        var l, d, u, p, m, g, f, y, v = [];
-        h = "undefined" != typeof h ? h : {},
-        "undefined" == typeof h.gutterSize && (h.gutterSize = 10),
-        "undefined" == typeof h.minSize && (h.minSize = 100),
-        "undefined" == typeof h.snapOffset && (h.snapOffset = 30),
-        "undefined" == typeof h.direction && (h.direction = "horizontal"),
-        "horizontal" == h.direction ? (l = "width",
-        u = "clientWidth",
-        p = "clientX",
-        m = "left",
-        g = "gutter gutter-horizontal",
-        f = "paddingLeft",
-        y = "paddingRight",
-        h.cursor || (h.cursor = "ew-resize")) : "vertical" == h.direction && (l = "height",
-        u = "clientHeight",
-        p = "clientY",
-        m = "top",
-        g = "gutter gutter-vertical",
-        f = "paddingTop",
-        y = "paddingBottom",
-        h.cursor || (h.cursor = "ns-resize"));
-        var b = function(t) {
-            var i = this
-              , s = i.a
-              , r = i.b;
-            !i.dragging && h.onDragStart && h.onDragStart(),
-            t.preventDefault(),
-            i.dragging = !0,
-            i.move = w.bind(i),
-            i.stop = S.bind(i),
-            e[n]("mouseup", i.stop),
-            e[n]("touchend", i.stop),
-            e[n]("touchcancel", i.stop),
-            i.parent[n]("mousemove", i.move),
-            i.parent[n]("touchmove", i.move),
-            s[n]("selectstart", x),
-            s[n]("dragstart", x),
-            r[n]("selectstart", x),
-            r[n]("dragstart", x),
-            s.style.userSelect = "none",
-            s.style.webkitUserSelect = "none",
-            s.style.MozUserSelect = "none",
-            s.style.pointerEvents = "none",
-            r.style.userSelect = "none",
-            r.style.webkitUserSelect = "none",
-            r.style.MozUserSelect = "none",
-            r.style.pointerEvents = "none",
-            i.gutter.style.cursor = h.cursor,
-            i.parent.style.cursor = h.cursor,
-            z.call(i)
-        }
-          , S = function() {
-            var t = this
-              , i = t.a
-              , n = t.b;
-            t.dragging && h.onDragEnd && h.onDragEnd(),
-            t.dragging = !1,
-            e[s]("mouseup", t.stop),
-            e[s]("touchend", t.stop),
-            e[s]("touchcancel", t.stop),
-            t.parent[s]("mousemove", t.move),
-            t.parent[s]("touchmove", t.move),
-            delete t.stop,
-            delete t.move,
-            i[s]("selectstart", x),
-            i[s]("dragstart", x),
-            n[s]("selectstart", x),
-            n[s]("dragstart", x),
-            i.style.userSelect = "",
-            i.style.webkitUserSelect = "",
-            i.style.MozUserSelect = "",
-            i.style.pointerEvents = "",
-            n.style.userSelect = "",
-            n.style.webkitUserSelect = "",
-            n.style.MozUserSelect = "",
-            n.style.pointerEvents = "",
-            t.gutter.style.cursor = "",
-            t.parent.style.cursor = ""
-        }
-          , w = function(e) {
-            var t;
-            this.dragging && (t = "touches"in e ? e.touches[0][p] - this.start : e[p] - this.start,
-            t <= this.aMin + h.snapOffset + this.aGutterSize ? t = this.aMin + this.aGutterSize : t >= this.size - (this.bMin + h.snapOffset + this.bGutterSize) && (t = this.size - (this.bMin + this.bGutterSize)),
-            _.call(this, t),
-            h.onDrag && h.onDrag())
-        }
-          , z = function() {
-            var t = e.getComputedStyle(this.parent)
-              , i = this.parent[u] - parseFloat(t[f]) - parseFloat(t[y]);
-            this.size = this.a[r]()[l] + this.b[r]()[l] + this.aGutterSize + this.bGutterSize,
-            this.percentage = Math.min(this.size / i * 100, 100),
-            this.start = this.a[r]()[m]
-        }
-          , _ = function(e) {
-            this.a.style[l] = o + "(" + e / this.size * this.percentage + "% - " + this.aGutterSize + "px)",
-            this.b.style[l] = o + "(" + (this.percentage - e / this.size * this.percentage) + "% - " + this.bGutterSize + "px)"
-        }
-          , L = function() {
-            var e = this
-              , t = e.a
-              , i = e.b;
-            t[r]()[l] < e.aMin ? (t.style[l] = e.aMin - e.aGutterSize + "px",
-            i.style[l] = e.size - e.aMin - e.aGutterSize + "px") : i[r]()[l] < e.bMin && (t.style[l] = e.size - e.bMin - e.bGutterSize + "px",
-            i.style[l] = e.bMin - e.bGutterSize + "px")
-        }
-          , M = function() {
-            var e = this
-              , t = e.a
-              , i = e.b;
-            i[r]()[l] < e.bMin ? (t.style[l] = e.size - e.bMin - e.bGutterSize + "px",
-            i.style[l] = e.bMin - e.bGutterSize + "px") : t[r]()[l] < e.aMin && (t.style[l] = e.aMin - e.aGutterSize + "px",
-            i.style[l] = e.size - e.aMin - e.aGutterSize + "px")
-        }
-          , G = function(e) {
-            for (var t = 0; t < e.length; t++)
-                z.call(e[t]),
-                L.call(e[t]);
-            for (t = e.length - 1; t >= 0; t--)
-                z.call(e[t]),
-                M.call(e[t])
-        }
-          , k = function(e, i, n) {
-            "string" == typeof i || i instanceof String || (i = t ? h.sizes[d] + "%" : o + "(" + i + "% - " + n + "px)"),
-            e.style[l] = i
-        }
-          , x = function() {
-            return !1
-        }
-          , E = a(c[0]).parentNode;
-        if (!h.sizes) {
-            var T = 100 / c.length;
-            for (h.sizes = [],
-            d = 0; d < c.length; d++)
-                h.sizes.push(T)
-        }
-        if (!Array.isArray(h.minSize)) {
-            var H = [];
-            for (d = 0; d < c.length; d++)
-                H.push(h.minSize);
-            h.minSize = H
-        }
-        for (d = 0; d < c.length; d++) {
-            var P, O = a(c[d]), A = 1 == d, U = d == c.length - 1, C = h.sizes[d], R = h.gutterSize;
-            if (d > 0 && (P = {
-                a: a(c[d - 1]),
-                b: O,
-                aMin: h.minSize[d - 1],
-                bMin: h.minSize[d],
-                dragging: !1,
-                parent: E,
-                isFirst: A,
-                isLast: U,
-                direction: h.direction
-            },
-            P.aGutterSize = h.gutterSize,
-            P.bGutterSize = h.gutterSize,
-            A && (P.aGutterSize = h.gutterSize / 2),
-            U && (P.bGutterSize = h.gutterSize / 2)),
-            !t) {
-                if (d > 0) {
-                    var q = i.createElement("div");
-                    q.className = g,
-                    q.style[l] = h.gutterSize + "px",
-                    q[n]("mousedown", b.bind(P)),
-                    q[n]("touchstart", b.bind(P)),
-                    E.insertBefore(q, O),
-                    P.gutter = q
-                }
-                0 !== d && d != c.length - 1 || (R = h.gutterSize / 2)
-            }
-            k(O, C, R),
-            d > 0 && v.push(P)
-        }
-        return G(v),
-        {
-            setSizes: function(e) {
-                for (var t = 0; t < e.length; t++)
-                    if (t > 0) {
-                        var i = v[t - 1];
-                        k(i.a, e[t - 1], i.aGutterSize),
-                        k(i.b, e[t], i.bGutterSize)
-                    }
-            },
-            collapse: function(e) {
-                var t;
-                e === v.length ? (t = v[e - 1],
-                z.call(t),
-                _.call(t, t.size - t.bGutterSize)) : (t = v[e],
-                z.call(t),
-                _.call(t, t.aGutterSize))
-            },
-            destroy: function() {
-                for (var e = 0; e < v.length; e++)
-                    v[e].parent.removeChild(v[e].gutter),
-                    v[e].a.style[l] = "",
-                    v[e].b.style[l] = ""
-            }
-        }
-    };
-    "undefined" != typeof exports ? ("undefined" != typeof module && module.exports && (exports = module.exports = c),
-    exports.Split = c) : e.Split = c
 }
-.call(window),
-function(e) {
-    function t(e) {
-        for (var t = e + "=", i = decodeURIComponent(document.cookie), n = i.split(";"), s = 0; s < n.length; s++) {
-            for (var r = n[s]; " " == r.charAt(0); )
-                r = r.substring(1);
-            if (0 == r.indexOf(t))
-                return "1" === r.substring(t.length, r.length)
+
+class List {
+    constructor() {
+        var read_from_cookie = function(name) {
+            for (var t = name + "=", i = decodeURIComponent(document.cookie), n = i.split(";"), s = 0; s < n.length; s++) {
+                for (var r = n[s]; " " == r.charAt(0); )
+                    r = r.substring(1);
+                if (0 == r.indexOf(t))
+                    return "1" === r.substring(t.length, r.length)
+            }
+            return true
         }
-        return !0
+
+        this.showHidden = read_from_cookie("hidden");
+        this.showOthers = read_from_cookie("other");
+        this.showPremium = read_from_cookie("premium");
+        this.filterAdult = read_from_cookie("adult");
+        this.fiterTwitch = read_from_cookie("twitch");
+        this.enabled = true;
+        this.loadedPage = 0;
+        this.page_count = -1;
+        window.addEventListener("load", this.init.bind(this));
     }
-    var i = '<a class="stream-item !!hidden!! !!premium!! !!adult!! !!player!! " href="#!!id!!"> <div class="inner"><span class="viewers"><span class="icon-users"></span> &#128100; !!user_count!! </span> <span class="stream-info"><span class="name">!!name!!</span><span class="stream">!!desc!!</span></span><img class="preview" src="!!thumb!!" onerror="this.src=\'https://goodgame.ru/images/ico_tv.png\'"></div></a>'
-      , n = function() {
-        this.showHidden = t("hidden"),
-        this.showOthers = t("other"),
-        this.showPremium = t("premium"),
-        this.filterAdult = t("adult"),
-        this.fiterTwitch = t("twitch"),
-        this.enabled = !0,
-        this.loadedPage = 0,
-        this.page_count = -1,
-        e.addEventListener("load", this.init.bind(this))
-    };
-    n.prototype.init = function() {
-        var e = this;
+
+    init() {
+        var local_this = this;
         this.dom = {
             streams_list: document.querySelector("#streams_list")
         };
-        var t = ["showHidden", "showOthers", "showPremium", "filterAdult", "fiterTwitch "];
-        for (var i in t) {
-            var n = document.getElementById(t[i]);
-            n && (n.checked = e[t[i]],
-            n.addEventListener("change", function(n) {
-                e.filterSwitch(t[i], n.target.checked)
-            }))
-        }
-        document.addEventListener("scroll", this.checkScrool.bind(this)),
-        Router().onList(this.enable.bind(this), this.disable.bind(this)),
-        this.checkScrool()
-    }
-    ,
-    n.prototype.reset = function() {
-        this.loadedPage = 0,
-        this.page_count = -1,
-        this.dom.streams_list.innerHTML = "",
-        this.nextPage()
-    }
-    ,
-    n.prototype.enable = function() {
-        this.enabled = !0,
-        this.dom.streams_list.style.display = "block",
-        this.checkScrool()
-    }
-    ,
-    n.prototype.disable = function() {
-        this.enabled = !1,
-        this.dom.streams_list.style.display = "none"
-    }
-    ,
-    n.prototype.onLoaded = function(e) {
-        if (e && e._embedded && e._embedded.streams) {
-            this.page_count = e.page_count;
-            var t, n, s = "";
-            for (var r in e._embedded.streams) {
-                switch (n = !1,
-                n = n || this.showHidden && e._embedded.streams[r].channel.hidden,
-                n = n || this.showPremium && "true" === e._embedded.streams[r].channel.premium,
-                this.showOthers && !e._embedded.streams[r].channel.hidden && "true" !== e._embedded.streams[r].channel.premium && (n = !0),
-                !0) {
-                case !n:
-                case !this.filterAdult && e._embedded.streams[r].channel.adult:
-                case this.fiterTwitch && "twitch" === e._embedded.streams[r].channel.player_type.toLowerCase():
-                    continue
-                }
-                t = i.replace(/!!user_count!!/gi, e._embedded.streams[r].player_viewers).replace(/!!name!!/gi, e._embedded.streams[r].channel.key).replace(/!!desc!!/gi, e._embedded.streams[r].channel.title).replace(/!!id!!/gi, e._embedded.streams[r].channel.id).replace(/!!thumb!!/gi, e._embedded.streams[r].channel.thumb).replace(/!!hidden!!/gi, e._embedded.streams[r].channel.hidden ? "hidden" : "").replace(/!!premium!!/gi, "true" === e._embedded.streams[r].channel.premium ? "premium" : "").replace(/!!adult!!/gi, e._embedded.streams[r].channel.adult ? "adult" : "").replace(/!!player!!/gi, e._embedded.streams[r].channel.player_type.toLowerCase()).replace(/!![A-Za-z_\.]*!!/gi, ""),
-                s += t
+        var toggles = ["showHidden", "showOthers", "showPremium", "filterAdult", "fiterTwitch "];
+        for (var i in toggles) {
+            var element = document.getElementById(toggles[i]);
+            if (element) {
+                element.checked = local_this[toggles[i]];
+                element.addEventListener(
+                    "change",
+                    function(n) {
+                        local_this.filterSwitch(toggles[i], n.target.checked)
+                    }
+                )
             }
-            var o = document.createElement("span");
-            o.innerHTML = s,
-            this.dom.streams_list.appendChild(o),
-            this.checkScrool()
         }
+        document.addEventListener("scroll", this.checkScroll.bind(this));
+
+        window.Router.onList(this.enable.bind(this), this.disable.bind(this));
+
+        this.checkScroll();
     }
-    ,
-    n.prototype.getPage = function(t) {
+
+    reset() {
+        this.loadedPage = 0;
+        this.page_count = -1;
+        this.dom.streams_list.innerHTML = "";
+        this.nextPage();
+    }
+
+    enable() {
+        this.enabled = true;
+        this.dom.streams_list.style.display = "block";
+        this.checkScroll();
+    }
+
+    disable() {
+        this.enabled = false;
+        clearInterval(this.scrollTimer);
+        this.dom.streams_list.style.display = "none";
+    }
+
+    onLoaded(response, single = false) {
+        if (!response) return;
+        
+        if (!single) {
+            var streams = response.streams;
+            this.page_count = Math.floor(response.queryInfo.qty / response.queryInfo.onPage);
+        } else {
+            var streams = [response.stream];
+            this.page_count = 0;
+        }
+    
+        var streamHtml = "";
+        for (var i in streams) {
+            var stream = streams[i];
+            var adult = !stream.adult;
+            var hidden = !stream.hidden;
+            var premium = !!stream.premiums;
+            var player = "gg";
+
+            var other = !hidden && !premium;
+            var show = (this.showHidden && hidden) || (this.showPremium && premium) || (this.showOthers && other);
+            show = show && !(!this.filterAdult && adult);
+            show = show && !(this.fiterTwitch && player !== "twitch");
+            if (!show) {
+                continue
+            }
+
+            var html = '<a class="stream-item !!hidden!! !!premium!! !!adult!! !!player!! " href="#!!id!!"> <div class="inner"><span class="viewers"><span class="icon-users"></span> &#128100; !!user_count!! </span> <span class="stream-info"><span class="name">!!name!!</span><span class="stream">!!desc!!</span></span><img class="preview" src="!!thumb!!" onerror="this.src=\'https://goodgame.ru/images/ico_tv.png\'"></div></a>';
+            var temp_html = html.replace(/!!user_count!!/gi, stream.viewers)
+                                .replace(/!!name!!/gi, stream.key)
+                                .replace(/!!desc!!/gi, stream.title)
+                                .replace(/!!id!!/gi, stream.key)
+                                .replace(/!!thumb!!/gi, stream.preview)
+                                .replace(/!!hidden!!/gi, hidden ? "hidden" : "")
+                                .replace(/!!premium!!/gi, "true" === premium ? "premium" : "")
+                                .replace(/!!adult!!/gi, adult ? "adult" : "")
+                                .replace(/!!player!!/gi, player)
+                                .replace(/!![A-Za-z_\.]*!!/gi, "")
+            streamHtml += temp_html;
+        }
+        var steamElement = document.createElement("span");
+        steamElement.innerHTML = streamHtml;
+        this.dom.streams_list.appendChild(steamElement);
+        this.checkScroll();
+    }
+
+    getPage(page) {
+        var local_this = this;
         if (this.isLoading || !this.enabled)
-            return !1;
-        var i = this
-          , n = {
-            page: t || 1
+            return false;
+
+        if (this.showHidden) {
+            this.setLoading();
+            window.GgApi.getHiddenStreams(function(response) {
+                local_this.onLoaded(response, true);
+                local_this.setLoaded();
+            })
+            return true;
+        }
+
+        var params = {
+            page: page || 1
         };
-        return n.hidden = "true",
-        e.GgApi.getStreams(n, function(e) {
-            i.setLoaded(),
-            i.onLoaded(e)
-        }),
-        this.setLoading(),
-        !0
+        // params.hidden = "true";
+        this.setLoading();
+        window.GgApi.getStreams(params, function(response) {
+            local_this.onLoaded(response);
+            local_this.setLoaded();
+            local_this.checkScroll();
+        })
+        return true;
     }
-    ,
-    n.prototype.setLoading = function() {
-        this.isLoading = !0,
-        this.dom.streams_list.className = "loading"
+
+    setLoading() {
+        this.isLoading = true;
+        this.dom.streams_list.className = "loading";
     }
-    ,
-    n.prototype.setLoaded = function() {
-        this.isLoading = !1,
-        this.dom.streams_list.className = ""
+
+    setLoaded() {
+        this.isLoading = false;
+        this.dom.streams_list.className = "";
     }
-    ,
-    n.prototype.nextPage = function() {
-        var e = this.loadedPage + 1;
-        if (!(this.page_count != -1 && this.page_count < e))
-            return !!this.getPage(e) && void (this.loadedPage = e)
-    }
-    ,
-    n.prototype.checkScrool = function() {
-        if (!e.location.hash || "#" === e.location.hash) {
-            var t = this.dom.streams_list.clientHeight
-              , i = e.pageYOffset + e.innerHeight;
-            i > t - 400 && this.nextPage()
+
+    nextPage() {
+        if (this.isLoading || !this.enabled)
+            return false;
+        var page = this.loadedPage + 1;
+        console.log("nextPage: " + page + " Total: " + this.page_count)
+        if (!(this.page_count != -1 && this.page_count < page)) {
+            if (this.getPage(page)) {
+                this.loadedPage = page
+            }
         }
     }
-    ,
-    n.prototype.filterSwitch = function(e, t) {
+
+    checkScroll() {
+        if (!window.location.hash || "#" === window.location.hash) {
+            var screen_bottom_pos = window.pageYOffset + window.innerHeight;
+            var list_height = this.dom.streams_list.clientHeight;
+            if ( screen_bottom_pos > list_height) {
+                this.nextPage();
+            }
+        }
+    }
+
+    filterSwitch(e, t) {
         this[e] = "undefined" != typeof t ? t : !this[e],
         this.saveFilters(),
         this.reset()
     }
-    ,
-    n.prototype.saveFilters = function() {
+
+    saveFilters() {
         document.cookie = "hidden=" + (this.showHidden ? "1" : "0") + ";",
         document.cookie = "others=" + (this.showOthers ? "1" : "0") + ";",
         document.cookie = "premium=" + (this.showPremium ? "1" : "0") + ";",
@@ -530,6 +367,12 @@ function(e) {
         document.cookie = "twitch=" + (this.fiterTwitch ? "1" : "0") + ";",
         console.log(document.cookie)
     }
-    ,
-    e.l = new n
-}(window);
+}
+
+window.Router = new Router();
+window.GgApi = new Api();
+window.l = new List();
+new View();
+
+/*! Split.js - v1.6.5 */
+!function(e,t){"object"==typeof exports&&"undefined"!=typeof module?module.exports=t():"function"==typeof define&&define.amd?define(t):(e="undefined"!=typeof globalThis?globalThis:e||self).Split=t()}(this,(function(){"use strict";var e="undefined"!=typeof window?window:null,t=null===e,n=t?void 0:e.document,i=function(){return!1},r=t?"calc":["","-webkit-","-moz-","-o-"].filter((function(e){var t=n.createElement("div");return t.style.cssText="width:"+e+"calc(9px)",!!t.style.length})).shift()+"calc",s=function(e){return"string"==typeof e||e instanceof String},o=function(e){if(s(e)){var t=n.querySelector(e);if(!t)throw new Error("Selector "+e+" did not match a DOM element");return t}return e},a=function(e,t,n){var i=e[t];return void 0!==i?i:n},u=function(e,t,n,i){if(t){if("end"===i)return 0;if("center"===i)return e/2}else if(n){if("start"===i)return 0;if("center"===i)return e/2}return e},l=function(e,t){var i=n.createElement("div");return i.className="gutter gutter-"+t,i},c=function(e,t,n){var i={};return s(t)?i[e]=t:i[e]=r+"("+t+"% - "+n+"px)",i},h=function(e,t){var n;return(n={})[e]=t+"px",n};return function(r,s){if(void 0===s&&(s={}),t)return{};var f,d,v,m,g,p,y=r;Array.from&&(y=Array.from(y));var z=o(y[0]).parentNode,S=getComputedStyle?getComputedStyle(z):null,b=S?S.flexDirection:null,E=a(s,"sizes")||y.map((function(){return 100/y.length})),_=a(s,"minSize",100),L=Array.isArray(_)?_:y.map((function(){return _})),w=a(s,"maxSize",1/0),x=Array.isArray(w)?w:y.map((function(){return w})),O=a(s,"expandToMin",!1),A=a(s,"gutterSize",10),k=a(s,"gutterAlign","center"),C=a(s,"snapOffset",30),M=Array.isArray(C)?C:y.map((function(){return C})),U=a(s,"dragInterval",1),D=a(s,"direction","horizontal"),B=a(s,"cursor","horizontal"===D?"col-resize":"row-resize"),T=a(s,"gutter",l),j=a(s,"elementStyle",c),F=a(s,"gutterStyle",h);function R(e,t,n,i){var r=j(f,t,n,i);Object.keys(r).forEach((function(t){e.style[t]=r[t]}))}function N(){return p.map((function(e){return e.size}))}function q(e){return"touches"in e?e.touches[0][d]:e[d]}function H(e){var t=p[this.a],n=p[this.b],i=t.size+n.size;t.size=e/this.size*i,n.size=i-e/this.size*i,R(t.element,t.size,this._b,t.i),R(n.element,n.size,this._c,n.i)}function I(e){var t,n=p[this.a],r=p[this.b];this.dragging&&(t=q(e)-this.start+(this._b-this.dragOffset),U>1&&(t=Math.round(t/U)*U),t<=n.minSize+n.snapOffset+this._b?t=n.minSize+this._b:t>=this.size-(r.minSize+r.snapOffset+this._c)&&(t=this.size-(r.minSize+this._c)),t>=n.maxSize-n.snapOffset+this._b?t=n.maxSize+this._b:t<=this.size-(r.maxSize-r.snapOffset+this._c)&&(t=this.size-(r.maxSize+this._c)),H.call(this,t),a(s,"onDrag",i)(N()))}function W(){var e=p[this.a].element,t=p[this.b].element,n=e.getBoundingClientRect(),i=t.getBoundingClientRect();this.size=n[f]+i[f]+this._b+this._c,this.start=n[v],this.end=n[m]}function X(e){var t=function(e){if(!getComputedStyle)return null;var t=getComputedStyle(e);if(!t)return null;var n=e[g];return 0===n?null:n-="horizontal"===D?parseFloat(t.paddingLeft)+parseFloat(t.paddingRight):parseFloat(t.paddingTop)+parseFloat(t.paddingBottom)}(z);if(null===t)return e;if(L.reduce((function(e,t){return e+t}),0)>t)return e;var n=0,i=[],r=e.map((function(r,s){var o=t*r/100,a=u(A,0===s,s===e.length-1,k),l=L[s]+a;return o<l?(n+=l-o,i.push(0),l):(i.push(o-l),o)}));return 0===n?e:r.map((function(e,r){var s=e;if(n>0&&i[r]-n>0){var o=Math.min(n,i[r]-n);n-=o,s=e-o}return s/t*100}))}function Y(){var t=p[this.a].element,r=p[this.b].element;this.dragging&&a(s,"onDragEnd",i)(N()),this.dragging=!1,e.removeEventListener("mouseup",this.stop),e.removeEventListener("touchend",this.stop),e.removeEventListener("touchcancel",this.stop),e.removeEventListener("mousemove",this.move),e.removeEventListener("touchmove",this.move),this.stop=null,this.move=null,t.removeEventListener("selectstart",i),t.removeEventListener("dragstart",i),r.removeEventListener("selectstart",i),r.removeEventListener("dragstart",i),t.style.userSelect="",t.style.webkitUserSelect="",t.style.MozUserSelect="",t.style.pointerEvents="",r.style.userSelect="",r.style.webkitUserSelect="",r.style.MozUserSelect="",r.style.pointerEvents="",this.gutter.style.cursor="",this.parent.style.cursor="",n.body.style.cursor=""}function G(t){if(!("button"in t)||0===t.button){var r=p[this.a].element,o=p[this.b].element;this.dragging||a(s,"onDragStart",i)(N()),t.preventDefault(),this.dragging=!0,this.move=I.bind(this),this.stop=Y.bind(this),e.addEventListener("mouseup",this.stop),e.addEventListener("touchend",this.stop),e.addEventListener("touchcancel",this.stop),e.addEventListener("mousemove",this.move),e.addEventListener("touchmove",this.move),r.addEventListener("selectstart",i),r.addEventListener("dragstart",i),o.addEventListener("selectstart",i),o.addEventListener("dragstart",i),r.style.userSelect="none",r.style.webkitUserSelect="none",r.style.MozUserSelect="none",r.style.pointerEvents="none",o.style.userSelect="none",o.style.webkitUserSelect="none",o.style.MozUserSelect="none",o.style.pointerEvents="none",this.gutter.style.cursor=B,this.parent.style.cursor=B,n.body.style.cursor=B,W.call(this),this.dragOffset=q(t)-this.end}}"horizontal"===D?(f="width",d="clientX",v="left",m="right",g="clientWidth"):"vertical"===D&&(f="height",d="clientY",v="top",m="bottom",g="clientHeight"),E=X(E);var J=[];function K(e){var t=e.i===J.length,n=t?J[e.i-1]:J[e.i];W.call(n);var i=t?n.size-e.minSize-n._c:e.minSize+n._b;H.call(n,i)}return(p=y.map((function(e,t){var n,i={element:o(e),size:E[t],minSize:L[t],maxSize:x[t],snapOffset:M[t],i:t};if(t>0&&((n={a:t-1,b:t,dragging:!1,direction:D,parent:z})._b=u(A,t-1==0,!1,k),n._c=u(A,!1,t===y.length-1,k),"row-reverse"===b||"column-reverse"===b)){var r=n.a;n.a=n.b,n.b=r}if(t>0){var s=T(t,D,i.element);!function(e,t,n){var i=F(f,t,n);Object.keys(i).forEach((function(t){e.style[t]=i[t]}))}(s,A,t),n._a=G.bind(n),s.addEventListener("mousedown",n._a),s.addEventListener("touchstart",n._a),z.insertBefore(s,i.element),n.gutter=s}return R(i.element,i.size,u(A,0===t,t===y.length-1,k),t),t>0&&J.push(n),i}))).forEach((function(e){var t=e.element.getBoundingClientRect()[f];t<e.minSize&&(O?K(e):e.minSize=t)})),{setSizes:function(e){var t=X(e);t.forEach((function(e,n){if(n>0){var i=J[n-1],r=p[i.a],s=p[i.b];r.size=t[n-1],s.size=e,R(r.element,r.size,i._b,r.i),R(s.element,s.size,i._c,s.i)}}))},getSizes:N,collapse:function(e){K(p[e])},destroy:function(e,t){J.forEach((function(n){if(!0!==t?n.parent.removeChild(n.gutter):(n.gutter.removeEventListener("mousedown",n._a),n.gutter.removeEventListener("touchstart",n._a)),!0!==e){var i=j(f,n.a.size,n._b);Object.keys(i).forEach((function(e){p[n.a].element.style[e]="",p[n.b].element.style[e]=""}))}}))},parent:z,pairs:J}}}));
