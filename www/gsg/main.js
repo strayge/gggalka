@@ -193,11 +193,11 @@ class List {
             return true
         }
 
-        this.showHidden = read_from_cookie("hidden");
-        this.showOthers = read_from_cookie("other");
-        this.showPremium = read_from_cookie("premium");
-        this.filterAdult = read_from_cookie("adult");
-        this.fiterTwitch = read_from_cookie("twitch");
+        this.showHidden = 0; //read_from_cookie("hidden");
+        this.showOthers = 1; //read_from_cookie("other");
+        this.showPremium = 1; //read_from_cookie("premium");
+        this.filterAdult = 1; //read_from_cookie("adult");
+        this.filterTwitch = 0; //read_from_cookie("twitch");
         this.enabled = true;
         this.loadedPage = 0;
         this.page_count = -1;
@@ -270,7 +270,7 @@ class List {
             var other = !hidden && !premium;
             var show = (this.showHidden && hidden) || (this.showPremium && premium) || (this.showOthers && other);
             show = show && !(!this.filterAdult && adult);
-            show = show && !(this.fiterTwitch && player !== "twitch");
+            show = show && (!this.filterTwitch || player === "twitch");
             if (!show) {
                 continue
             }
@@ -364,7 +364,7 @@ class List {
         document.cookie = "others=" + (this.showOthers ? "1" : "0") + ";",
         document.cookie = "premium=" + (this.showPremium ? "1" : "0") + ";",
         document.cookie = "adult=" + (this.filterAdult ? "1" : "0") + ";",
-        document.cookie = "twitch=" + (this.fiterTwitch ? "1" : "0") + ";",
+        document.cookie = "twitch=" + (this.filterTwitch ? "1" : "0") + ";",
         console.log(document.cookie)
     }
 }
